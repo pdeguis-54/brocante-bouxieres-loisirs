@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bouxières Loisirs Brocante</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        #map { height: 440px; width: 100%; border-radius: 0.75rem; z-index: 1 !important; }
+        header { z-index: 50 !important; }
+        #modal-exposant, #modal-notif { z-index: 100 !important; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans pb-16 md:pb-0">
+
+    <header class="bg-emerald-600 text-white shadow-md p-4 sticky top-0">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i data-lucide="map-pin" class="w-6 h-6"></i>
+                <h1 class="text-xl font-bold tracking-tight">Bouxières Loisirs Brocante</h1>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 max-w-6xl mb-12 space-y-6">
+        
+        <div class="bg-slate-900 text-white p-4 rounded-xl shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h3 class="font-bold flex items-center gap-2 text-sm md:text-base"><i data-lucide="save" class="text-amber-400"></i> Continuité du projet / Travail par étapes</h3>
+                <p class="text-[11px] text-slate-400">Exportez le fichier global de session pour sauvegarder vos tracés, cartes, exposants et découpages bi-latéraux.</p>
+            </div>
+            <div class="flex gap-2 w-full md:w-auto">
+                <label class="w-1/2 md:w-auto bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer hover:bg-slate-600 flex items-center justify-center gap-2">
+                    <i data-lucide="upload-cloud" class="w-4 h-4"></i> Charger session (.json)
+                    <input type="file" id="json-file" accept=".json" class="hidden" onchange="importGlobalJSON(event)">
+                </label>
+                <button onclick="exportGlobalJSON()" class="w-1/2 md:w-auto bg-amber-50 text-slate-950 px-3 py-2 rounded-lg text-xs font-bold hover:bg-amber-400 flex items-center justify-center gap-2">
+                    <i data-lucide="download-cloud" class="w-4 h-4"></i> Sauver session (.json)
+                </button>
+            </div>
+        </div>
+
+        <div class="hidden md:flex space-x-2 bg-white p-2 rounded-xl shadow-sm" id="navigation-desktop">
+            <button onclick="switchTab('tab-carte')" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700 font-medium structure-btn" id="btn-tab-carte">
+                <i data-lucide="map" class="w-4 h-4"></i> Configuration des Voies & Carte
+            </button>
+            <button onclick="switchTab('tab-exposants')" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 structure-btn" id="btn-tab-exposants">
+                <i data-lucide="users" class="w-4 h-4"></i> Exposants & Réservations
+            </button>
+            <button onclick="switchTab('tab-decoupage')" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 structure-btn" id="btn-tab-decoupage">
+                <i data-lucide="scissors" class="w-4 h-4"></i> Algorithme & Découpage
+            </button>
+            <button onclick="switchTab('tab-terrain')" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 structure-btn" id="btn-tab-terrain">
+                <i data-lucide="smartphone" class="w-4 h-4"></i> Mode Terrain (Marquage)
+            </button>
+        </div>
+
+        <div id="tab-carte" class="tab-content active space-y-4">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div class="lg:col-span-2 bg-white p-4 rounded-xl shadow-sm space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-lg font-bold flex items-center gap-2"><i data-lucide="map"></i> Plan Interactif de Bouxières</h2>
+                        <span id="map-status-info" class="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-1 rounded">Mode standard</span>
+                    </div>
+                    <div id="map"></div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm space-y-4">
+                    <h2 class="text-lg font-bold flex items-center gap-2"><i data-lucide="git-commit"></i> Dessiner une Rue</h2>
+                    <p class="text-xs text-gray-500">Tracez le segment de l'axe central. Le système gérera l'attribution à gauche et à droite.</p>
+                    
+                    <form id="form-voie" class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-gray-600">Nom de la Rue / Zone</label>
+                            <input type="text" id="voie-nom" placeholder="ex: Rue de la République" class="w-full mt-1 p-2 border rounded-lg text-sm" required>
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded-lg border space-y-2">
+                            <button type="button" onclick="activerTraceRue()" class="w-full bg-blue-600 text-white text-xs py-2 rounded font-semibold hover:bg-blue-700 flex justify-center items-center gap-1">
+                                <i data-lucide="mouse-pointer"></i> 1. Placer Début et Fin sur la carte
+                            </button>
+                            <div class="text-[11px] text-gray-500 flex justify-between">
+                                <span id="geo-pt1">Début : Non défini</span>
+                                <span id="geo-pt2">Fin : Non défini</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-gray-600">Longueur linéaire exploitable (mètres)</label>
+                            <input type="number" id="voie-longueur" min="5" placeholder="ex: 120" class="w-full mt-1 p-2 border rounded-lg text-sm" required>
+                        </div>
+                        <button type="submit" class="w-full bg-emerald-600 text-white py-2 rounded-lg font-medium hover:bg-emerald-700 text-sm flex justify-center items-center gap-1">
+                            <i data-lucide="plus-circle"></i> Enregistrer la zone
+                        </button>
+                    </form>
+                    <hr>
+                    <h3 class="font-semibold text-sm">Zones configurées :</h3>
+                    <div id="liste-voies" class="space-y-2 max-h-40 overflow-y-auto"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-exposants" class="tab-content space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 class="text-lg font-bold flex items-center gap-2"><i data-lucide="users"></i> Liste des Exposants</h2>
+                    <p class="text-xs text-gray-500">Colonnes additionnelles acceptées en CSV : <b>coteCible</b> (Impair / Pair / Libre)</p>
+                </div>
+                <div class="flex flex-wrap gap-2 w-full md:w-auto">
+                    <label class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium cursor-pointer hover:bg-blue-700 flex items-center gap-2">
+                        <i data-lucide="file-input" class="w-4 h-4"></i> Import CSV (Inscrits)
+                        <input type="file" id="csv-file" accept=".csv" class="hidden" onchange="importCSV(event)">
+                    </label>
+                    <button onclick="exportCSV()" class="bg-gray-800 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-900 flex items-center gap-2">
+                        <i data-lucide="file-output" class="w-4 h-4"></i> Export CSV (Inscrits)
+                    </button>
+                    <button onclick="openModalExposant()" class="bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 flex items-center gap-2 ml-auto md:ml-0">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Nouvel Exposant
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="bg-gray-100 border-b uppercase text-xs font-semibold text-gray-600">
+                            <th class="p-3">Nom</th>
+                            <th class="p-3">Contact</th>
+                            <th class="p-3 text-center">Métrage</th>
+                            <th class="p-3 text-center">Riverain ?</th>
+                            <th class="p-3 text-left">Préférence Côté</th>
+                            <th class="p-3">Positionnement Relatif</th>
+                            <th class="p-3 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-exposants-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="tab-decoupage" class="tab-content space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm space-y-3">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                    <div>
+                        <h2 class="text-lg font-bold flex items-center gap-2"><i data-lucide="scissors"></i> Moteur de placement linéaire double-côté</h2>
+                        <p class="text-xs text-gray-500">Distribue automatiquement les demandes sur les rives Gauche (Impairs) et Droite (Pairs).</p>
+                    </div>
+                    <button onclick="lancerCalculPlacement()" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-5 py-3 rounded-xl font-bold hover:opacity-90 flex items-center justify-center gap-2 shadow">
+                        <i data-lucide="cpu" class="w-5 h-5"></i> Calculer/Recalculer les deux côtés
+                    </button>
+                </div>
+                <div id="visualisation-rues-decoupage" class="space-y-6 pt-4"></div>
+            </div>
+        </div>
+
+        <div id="tab-terrain" class="tab-content space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm flex flex-col sm:flex-row gap-4 items-center justify-between">
+                <div class="w-full sm:w-1/2">
+                    <label class="block text-xs text-gray-400 font-bold uppercase mb-1">Sélection de la zone</label>
+                    <select id="select-rue-terrain" onchange="chargerRueTerrain()" class="w-full p-3 border rounded-xl bg-gray-50 text-sm font-semibold"></select>
+                </div>
+                <div class="w-full sm:w-1/2">
+                    <label class="block text-xs text-gray-400 font-bold uppercase mb-1">Filtre Côté sur le Terrain</label>
+                    <select id="select-cote-terrain" onchange="chargerRueTerrain()" class="w-full p-3 border rounded-xl bg-gray-50 text-sm font-semibold">
+                        <option value="TOUS">Afficher les deux côtés alternés</option>
+                        <option value="IMPAIR">Côté Gauche (Impairs) uniquement</option>
+                        <option value="PAIR">Côté Droite (Pairs) uniquement</option>
+                    </select>
+                </div>
+            </div>
+            <div id="liste-terrain-pas-a-pas" class="space-y-2"></div>
+        </div>
+    </main>
+
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around p-2 z-50 shadow-lg" id="navigation-mobile">
+        <button onclick="switchTab('tab-carte')" class="flex flex-col items-center text-xs mob-btn text-emerald-600" id="mob-tab-carte"><i data-lucide="map" class="w-5 h-5"></i><span>Carte</span></button>
+        <button onclick="switchTab('tab-exposants')" class="flex flex-col items-center text-xs mob-btn text-gray-500" id="mob-tab-exposants"><i data-lucide="users" class="w-5 h-5"></i><span>Exposants</span></button>
+        <button onclick="switchTab('tab-decoupage')" class="flex flex-col items-center text-xs mob-btn text-gray-500" id="mob-tab-decoupage"><i data-lucide="scissors" class="w-5 h-5"></i><span>Calcul</span></button>
+        <button onclick="switchTab('tab-terrain')" class="flex flex-col items-center text-xs mob-btn text-gray-500" id="mob-tab-terrain"><i data-lucide="smartphone" class="w-5 h-5"></i><span>Terrain</span></button>
+    </nav>
+
+    <div id="modal-exposant" class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex justify-center items-center hidden p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <h3 class="text-lg font-bold flex items-center gap-2"><i data-lucide="user-plus" class="text-emerald-600"></i> Fiche Exposant</h3>
+            <form id="form-exposant" class="space-y-3">
+                <input type="hidden" id="exp-id">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600">Nom & Prénom</label>
+                    <input type="text" id="exp-nom" class="w-full mt-1 p-2 border rounded-lg text-sm" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600">Téléphone</label>
+                    <input type="tel" id="exp-tel" class="w-full mt-1 p-2 border rounded-lg text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600">Métrage requis</label>
+                        <input type="number" id="exp-metres" min="2" value="5" class="w-full mt-1 p-2 border rounded-lg text-sm" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600">Côté Assigné</label>
+                        <select id="exp-cote" class="w-full mt-1 p-2 border rounded-lg text-sm bg-white">
+                            <option value="LIBRE">Peu importe (Optimisé)</option>
+                            <option value="IMPAIR">Côté Impair / Gauche</option>
+                            <option value="PAIR">Côté Pair / Droite</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="inline-flex items-center space-x-2 pt-2 cursor-pointer">
+                        <input type="checkbox" id="exp-riverain" onchange="toggleRiverainFields()" class="rounded text-emerald-600 w-4 h-4">
+                        <span class="text-xs font-semibold text-gray-600">Est Riverain de la zone ?</span>
+                    </label>
+                </div>
+                <div id="zone-riverain" class="hidden bg-amber-50 p-3 rounded-lg border border-amber-200 space-y-2">
+                    <label class="block text-xs font-bold text-amber-800">Cible Métrique (Distance depuis le début de la rue)</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="exp-metre-cible" placeholder="Ex: 45" class="w-full p-2 border rounded-lg text-sm bg-white">
+                        <button type="button" onclick="capturerPositionRiverain()" class="bg-amber-600 text-white text-xs px-3 rounded font-medium hover:bg-amber-700 whitespace-nowrap">Pointer sa maison</button>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="closeModalExposant()" class="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Annuler</button>
+                    <button type="submit" class="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg font-medium">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-notif" class="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex justify-center items-center hidden p-4">
+        <div class="bg-white rounded-xl max-w-sm w-full p-5 text-center space-y-4 shadow-xl">
+            <div id="notif-icon-box" class="w-12 h-12 rounded-full mx-auto flex items-center justify-center"></div>
+            <h4 id="notif-title" class="font-bold text-gray-900 text-lg"></h4>
+            <p id="notif-message" class="text-sm text-gray-600"></p>
+            <button onclick="closeNotif()" class="w-full bg-gray-900 text-white py-2 rounded-lg text-sm font-medium">D'accord</button>
+        </div>
+    </div>
+
+    <script>
+        let DATA = { voies: [], exposants: [] };
+        
+        try {
+            DATA.voies = JSON.parse(localStorage.getItem('bm_voies')) || [];
+            DATA.exposants = JSON.parse(localStorage.getItem('bm_exposants')) || [];
+        } catch(e) { console.error(e); }
+
+        let map = null, mapMode = "normal", tempPointsVoie = [], currentPolyline = null, mapPolylines = {};
+
+        function saveToStorage() {
+            try {
+                localStorage.setItem('bm_voies', JSON.stringify(DATA.voies));
+                localStorage.setItem('bm_exposants', JSON.stringify(DATA.exposants));
+            } catch(e) {}
+        }
+
+        window.addEventListener("load", () => {
+            initMap();
+            renderVoies();
+            renderExposants();
+            updateRueDropdowns();
+            renderVisualisationDecoupage();
+            try { lucide.createIcons(); } catch(e){}
+        });
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            const target = document.getElementById(tabId);
+            if(target) target.classList.add('active');
+
+            document.querySelectorAll('#navigation-desktop .structure-btn').forEach(btn => {
+                btn.classList.remove('bg-emerald-50', 'text-emerald-700', 'font-medium');
+                btn.classList.add('text-gray-600', 'hover:bg-gray-100');
+            });
+
+            document.querySelectorAll('#navigation-mobile .mob-btn').forEach(btn => {
+                btn.classList.remove('text-emerald-600');
+                btn.classList.add('text-gray-500');
+            });
+
+            let activeBtnId = 'btn-' + tabId;
+            let currentBtn = document.getElementById(activeBtnId);
+            if(currentBtn) {
+                currentBtn.classList.remove('text-gray-600', 'hover:bg-gray-100');
+                currentBtn.classList.add('bg-emerald-50', 'text-emerald-700', 'font-medium');
+            }
+
+            let activeMobId = 'mob-' + tabId;
+            let currentMob = document.getElementById(activeMobId);
+            if(currentMob) {
+                currentMob.classList.remove('text-gray-500');
+                currentMob.classList.add('text-emerald-600');
+            }
+
+            if (tabId === 'tab-carte' && map) setTimeout(() => map.invalidateSize(), 200);
+            if (tabId === 'tab-decoupage') renderVisualisationDecoupage();
+            if (tabId === 'tab-terrain') { updateRueDropdowns(); chargerRueTerrain(); }
+        }
+
+        function showNotif(title, msg, type = 'success') {
+            const modal = document.getElementById('modal-notif');
+            if(!modal) return;
+            document.getElementById('notif-title').innerText = title;
+            document.getElementById('notif-message').innerText = msg;
+            modal.classList.remove('hidden');
+        }
+        function closeNotif() { document.getElementById('modal-notif').classList.add('hidden'); }
+
+        function exportGlobalJSON() {
+            let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(DATA));
+            let downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", "sauvegarde_globale_brocante.json");
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importGlobalJSON(event) {
+            let file = event.target.files[0];
+            if (!file) return;
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    let parsed = JSON.parse(e.target.result);
+                    if (parsed.voies && parsed.exposants) {
+                        DATA = parsed;
+                        saveToStorage();
+                        renderVoies();
+                        renderExposants();
+                        updateRueDropdowns();
+                        renderVisualisationDecoupage();
+                        drawAllVoiesOnMap();
+                        showNotif("Restauration complète OK", "Données rechargées.");
+                    }
+                } catch (err) { showNotif("Erreur", "Fichier corrompu.", "error"); }
+            };
+            reader.readAsText(file);
+        }
+
+        function initMap() {
+            const mapContainer = document.getElementById('map');
+            if(!mapContainer) return;
+            try {
+                map = L.map('map').setView([48.7712, 6.2605], 16);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                drawAllVoiesOnMap();
+
+                map.on('click', (e) => {
+                    if(mapMode === "trace_voie") {
+                        tempPointsVoie.push([e.latlng.lat, e.latlng.lng]);
+                        if(tempPointsVoie.length === 1) document.getElementById('geo-pt1').innerText = "Début : OK";
+                        if(tempPointsVoie.length === 2) {
+                            document.getElementById('geo-pt2').innerText = "Fin : OK";
+                            if(currentPolyline) map.removeLayer(currentPolyline);
+                            currentPolyline = L.polyline(tempPointsVoie, {color: 'blue'}).addTo(map);
+                            mapMode = "normal";
+                            document.getElementById('map-status-info').innerText = "Segment axial tracé !";
+                        }
+                    } else if(mapMode === "pick_riverain") {
+                        if(DATA.voies.length === 0) return;
+                        let rue = DATA.voies[0]; 
+                        if(rue.geo && rue.geo.length == 2) {
+                            let pA = rue.geo[0]; let pB = rue.geo[1];
+                            let distTotaleGeo = map.distance(pA, pB);
+                            let distClickA = map.distance(pA, [e.latlng.lat, e.latlng.lng]);
+                            let ratio = distClickA / distTotaleGeo;
+                            if(ratio > 1) ratio = 1;
+                            document.getElementById('exp-metre-cible').value = Math.round(ratio * rue.longueur);
+                        }
+                        mapMode = "normal";
+                        document.getElementById('map-status-info').innerText = "Position capturée !";
+                        document.getElementById('modal-exposant').classList.remove('hidden');
+                    }
+                });
+            } catch (err) {}
+        }
+
+        function drawAllVoiesOnMap() {
+            if(!map) return;
+            Object.values(mapPolylines).forEach(p => map.removeLayer(p));
+            mapPolylines = {};
+            DATA.voies.forEach(v => {
+                if(v.geo && v.geo.length === 2) {
+                    let p = L.polyline(v.geo, {color: '#10b981', weight: 6}).addTo(map).bindPopup(`<b>${v.nom}</b>`);
+                    mapPolylines[v.id] = p;
+                }
+            });
+        }
+
+        function activerTraceRue() {
+            mapMode = "trace_voie"; tempPointsVoie = [];
+            document.getElementById('geo-pt1').innerText = "Cliquez Début";
+            document.getElementById('geo-pt2').innerText = "Cliquez Fin";
+        }
+
+        function capturerPositionRiverain() {
+            document.getElementById('modal-exposant').classList.add('hidden');
+            mapMode = "pick_riverain"; switchTab('tab-carte');
+        }
+
+        // --- Fonctions d'interaction au survol du tableau des zones ---
+        function mettreEnValeurVoie(id) {
+            if (mapPolylines[id]) {
+                mapPolylines[id].setStyle({ color: '#ef4444', weight: 8 }); // Passe en rouge épais
+            }
+        }
+
+        function restaurerVoie(id) {
+            if (mapPolylines[id]) {
+                mapPolylines[id].setStyle({ color: '#10b981', weight: 6 }); // Revient en vert standard
+            }
+        }
+
+        const formVoie = document.getElementById('form-voie');
+        if(formVoie) {
+            formVoie.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const nom = document.getElementById('voie-nom').value;
+                const long = parseInt(document.getElementById('voie-longueur').value);
+                DATA.voies.push({ id: Date.now().toString(), nom: nom, longueur: long, geo: tempPointsVoie, emplacementsPair: [], emplacementsImpair: [] });
+                saveToStorage(); renderVoies(); drawAllVoiesOnMap();
+                if(currentPolyline) map.removeLayer(currentPolyline);
+                formVoie.reset();
+            });
+        }
+
+        function renderVoies() {
+            const container = document.getElementById('liste-voies');
+            if(!container) return;
+            container.innerHTML = DATA.voies.map(v => `
+                <div class="bg-gray-100 p-2 rounded text-xs flex justify-between items-center transition hover:bg-gray-200"
+                     onmouseenter="mettreEnValeurVoie('${v.id}')" 
+                     onmouseleave="restaurerVoie('${v.id}')">
+                    <div><b>${v.nom}</b> (${v.longueur}m x 2 côtés)</div>
+                    <button onclick="supprimerVoie('${v.id}')" class="text-red-500 font-bold ml-2">Suppr.</button>
+                </div>
+            `).join('') || '<p class="text-xs italic text-gray-400">Aucune rue configurée.</p>';
+        }
+
+        function supprimerVoie(id) { 
+            if (mapPolylines[id]) { map.removeLayer(mapPolylines[id]); delete mapPolylines[id]; }
+            DATA.voies = DATA.voies.filter(v => v.id !== id); 
+            saveToStorage(); renderVoies(); 
+        }
+
+        function openModalExposant() {
+            document.getElementById('form-exposant').reset();
+            document.getElementById('exp-id').value = "";
+            document.getElementById('zone-riverain').classList.add('hidden');
+            document.getElementById('modal-exposant').classList.remove('hidden');
+        }
+        function closeModalExposant() { document.getElementById('modal-exposant').classList.add('hidden'); }
+        function toggleRiverainFields() { document.getElementById('zone-riverain').classList.toggle('hidden', !document.getElementById('exp-riverain').checked); }
+
+        function ouvrirEditionExposant(id) {
+            const exp = DATA.exposants.find(e => e.id === id);
+            if (!exp) return;
+            
+            document.getElementById('exp-id').value = exp.id;
+            document.getElementById('exp-nom').value = exp.nom;
+            document.getElementById('exp-tel').value = exp.tel || '';
+            document.getElementById('exp-metres').value = exp.metres;
+            document.getElementById('exp-cote').value = exp.cote || 'LIBRE';
+            document.getElementById('exp-riverain').checked = exp.riverain;
+            
+            if (exp.riverain) {
+                document.getElementById('zone-riverain').classList.remove('hidden');
+                document.getElementById('exp-metre-cible').value = exp.metreCible || 0;
+            } else {
+                document.getElementById('zone-riverain').classList.add('hidden');
+                document.getElementById('exp-metre-cible').value = '';
+            }
+            document.getElementById('modal-exposant').classList.remove('hidden');
+        }
+
+        const formExp = document.getElementById('form-exposant');
+        if(formExp) {
+            formExp.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const currentId = document.getElementById('exp-id').value;
+                
+                const expData = {
+                    nom: document.getElementById('exp-nom').value,
+                    tel: document.getElementById('exp-tel').value,
+                    metres: parseInt(document.getElementById('exp-metres').value),
+                    cote: document.getElementById('exp-cote').value,
+                    riverain: document.getElementById('exp-riverain').checked,
+                    metreCible: document.getElementById('exp-riverain').checked ? parseInt(document.getElementById('exp-metre-cible').value || 0) : null
+                };
+
+                if (currentId) {
+                    const index = DATA.exposants.findIndex(item => item.id === currentId);
+                    if (index !== -1) {
+                        DATA.exposants[index] = { ...DATA.exposants[index], ...expData };
+                    }
+                } else {
+                    DATA.exposants.push({ id: Date.now().toString(), ...expData });
+                }
+
+                saveToStorage(); 
+                renderExposants(); 
+                closeModalExposant();
+                switchTab('tab-exposants');
+            });
+        }
+
+        function renderExposants() {
+            const tbody = document.getElementById('table-exposants-body');
+            if(!tbody) return;
+            tbody.innerHTML = DATA.exposants.map(e => `
+                <tr class="border-b">
+                    <td class="p-3 font-semibold">${e.nom}</td>
+                    <td class="p-3 text-xs text-gray-500">${e.tel || '-'}</td>
+                    <td class="p-3 text-center font-bold">${e.metres}m</td>
+                    <td class="p-3 text-center">${e.riverain ? '⭐' : 'Non'}</td>
+                    <td class="p-3 text-left text-xs font-semibold">${e.cote === 'IMPAIR' ? '🔴 Impair/Gauche' : (e.cote === 'PAIR' ? '🔵 Pair/Droite' : '🟢 Libre')}</td>
+                    <td class="p-3 text-xs">${e.riverain ? `Repère fixe : <b>${e.metreCible}m</b>` : 'À la suite'}</td>
+                    <td class="p-3 text-right space-x-2">
+                        <button onclick="ouvrirEditionExposant('${e.id}')" class="text-emerald-600 font-medium hover:underline">Modifier</button>
+                        <button onclick="supprimerExposant('${e.id}')" class="text-red-500 font-medium hover:underline">Retirer</button>
+                    </td>
+                </tr>
+            `).join('') || '<tr><td colspan="7" class="p-4 text-center text-gray-400 italic">Aucun inscrit.</td></tr>';
+        }
+
+        function supprimerExposant(id) { DATA.exposants = DATA.exposants.filter(e => e.id !== id); saveToStorage(); renderExposants(); }
+
+        function exportCSV() {
+            let csv = Papa.unparse(DATA.exposants);
+            let blob = new Blob([csv], {type: "text/csv;charset=utf-8;"});
+            let link = document.createElement("a"); link.href = URL.createObjectURL(blob);
+            link.setAttribute("download", "export_bouxieres_double_cote.csv"); link.click();
+        }
+
+        function importCSV(event) {
+            Papa.parse(event.target.files[0], {
+                header: true, dynamicTyping: true,
+                complete: function(res) {
+                    DATA.exposants = res.data.filter(r => r.nom).map(r => ({
+                        id: Date.now().toString() + Math.random(),
+                        nom: r.nom, tel: r.tel || '', metres: parseInt(r.metres) || 5,
+                        cote: r.coteCible || 'LIBRE',
+                        riverain: r.riverain === "Oui" || r.riverain === true,
+                        metreCible: parseInt(r.metreCible) || null
+                    }));
+                    saveToStorage(); renderExposants();
+                }
+            });
+        }
+
+        function lancerCalculPlacement() {
+            if(DATA.voies.length === 0) return;
+            DATA.voies.forEach(v => { v.emplacementsImpair = []; v.emplacementsPair = []; });
+            let rue = DATA.voies[0];
+
+            let riverains = DATA.exposants.filter(e => e.riverain).sort((a,b) => a.metreCible - b.metreCible);
+            riverains.forEach(r => {
+                let cibleTable = (r.cote === 'PAIR') ? rue.emplacementsPair : rue.emplacementsImpair;
+                if(r.metreCible + r.metres <= rue.longueur) {
+                    cibleTable.push({ nom: r.nom, debut: r.metreCible, fin: r.metreCible + r.metres, metres: r.metres, riverain: true, cote: (r.cote==='PAIR'?'PAIR':'IMPAIR') });
+                }
+            });
+
+            rue.emplacementsImpair.sort((a,b) => a.debut - b.debut);
+            rue.emplacementsPair.sort((a,b) => a.debut - b.debut);
+
+            let autres = DATA.exposants.filter(e => !e.riverain);
+            let curseurImpair = 0; let curseurPair = 0;
+
+            autres.forEach(a => {
+                let placeOk = false;
+                let testerImpair = (a.cote === 'LIBRE' || a.cote === 'IMPAIR');
+                let testerPair = (a.cote === 'LIBRE' || a.cote === 'PAIR');
+
+                if(a.cote === 'LIBRE' && curseurPair < curseurImpair) {
+                    placeOk = verifierEtPlacer(rue.emplacementsPair, a, curseurPair, rue.longueur, 'PAIR');
+                    if (placeOk) curseurPair += a.metres;
+                    else {
+                        placeOk = verifierEtPlacer(rue.emplacementsImpair, a, curseurImpair, rue.longueur, 'IMPAIR');
+                        if(placeOk) curseurImpair += a.metres;
+                    }
+                } else {
+                    if(testerImpair && !placeOk) {
+                        placeOk = verifierEtPlacer(rue.emplacementsImpair, a, curseurImpair, rue.longueur, 'IMPAIR');
+                        if(placeOk) curseurImpair += a.metres;
+                    }
+                    if(testerPair && !placeOk) {
+                        placeOk = verifierEtPlacer(rue.emplacementsPair, a, curseurPair, rue.longueur, 'PAIR');
+                        if(placeOk) curseurPair += a.metres;
+                    }
+                }
+            });
+
+            saveToStorage(); renderVisualisationDecoupage();
+            showNotif("Calcul Global Terminé", "Les deux rives ont été optimisées.");
+        }
+
+        function verifierEtPlacer(tableEmplacements, exposant, curseurActuel, maxLong, codeCote) {
+            let curseur = curseurActuel;
+            while(curseur < maxLong) {
+                let collision = tableEmplacements.some(emp => (curseur >= emp.debut && curseur < emp.fin) || (curseur + exposant.metres > emp.debut && curseur + exposant.metres <= emp.fin));
+                if(!collision && (curseur + exposant.metres <= maxLong)) {
+                    tableEmplacements.push({ nom: exposant.nom, debut: curseur, fin: curseur + exposant.metres, metres: exposant.metres, riverain: false, cote: codeCote });
+                    return true;
+                } else {
+                    let empBloquant = tableEmplacements.find(emp => curseur >= emp.debut && curseur < emp.fin);
+                    curseur = empBloquant ? empBloquant.fin : curseur + 1;
+                }
+            }
+            return false;
+        }
+
+        function renderVisualisationDecoupage() {
+            const container = document.getElementById('visualisation-rues-decoupage');
+            if(!container) return;
+            container.innerHTML = DATA.voies.map(rue => {
+                if(!rue.emplacementsImpair) rue.emplacementsImpair = [];
+                if(!rue.emplacementsPair) rue.emplacementsPair = [];
+                rue.emplacementsImpair.sort((a,b) => a.debut - b.debut);
+                rue.emplacementsPair.sort((a,b) => a.debut - b.debut);
+
+                let htmlImpair = rue.emplacementsImpair.map(e => `
+                    <div style="width: ${(e.metres / rue.longueur) * 100}%; min-width:75px;" class="${e.riverain ? 'bg-amber-400 text-amber-950' : 'bg-red-500 text-white'} h-10 border border-white flex flex-col items-center justify-center text-[10px] font-bold rounded shadow-xs">
+                        <span class="truncate w-full text-center px-1">${e.nom}</span>
+                        <span>${e.debut}m - ${e.fin}m</span>
+                    </div>
+                `).join('');
+
+                let htmlPair = rue.emplacementsPair.map(e => `
+                    <div style="width: ${(e.metres / rue.longueur) * 100}%; min-width:75px;" class="${e.riverain ? 'bg-amber-400 text-amber-950' : 'bg-blue-500 text-white'} h-10 border border-white flex flex-col items-center justify-center text-[10px] font-bold rounded shadow-xs">
+                        <span class="truncate w-full text-center px-1">${e.nom}</span>
+                        <span>${e.debut}m - ${e.fin}m</span>
+                    </div>
+                `).join('');
+
+                return `
+                    <div class="bg-white p-4 rounded-xl border border-gray-200 space-y-3 shadow-xs">
+                        <div class="flex justify-between items-center"><b class="text-gray-900">📍 Rives de : ${rue.nom}</b></div>
+                        <div class="space-y-1">
+                            <div class="text-[11px] font-bold text-red-700">🔴 Côté Gauche / Impair</div>
+                            <div class="w-full bg-gray-200 h-12 flex p-1 overflow-x-auto rounded-lg">${htmlImpair || '<span class="text-xs text-gray-400 italic p-2">Aucun.</span>'}</div>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="text-[11px] font-bold text-blue-700">🔵 Côté Droite / Pair</div>
+                            <div class="w-full bg-gray-200 h-12 flex p-1 overflow-x-auto rounded-lg">${htmlPair || '<span class="text-xs text-gray-400 italic p-2">Aucun.</span>'}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('') || '<p class="text-sm italic text-gray-400">Configurez d\'abord des rues.</p>';
+        }
+
+        function updateRueDropdowns() { 
+            const select = document.getElementById('select-rue-terrain');
+            if(select) select.innerHTML = DATA.voies.map(v => `<option value="${v.id}">${v.nom}</option>`).join('') || '<option>Aucune zone</option>'; 
+        }
+
+        function chargerRueTerrain() {
+            const selectRue = document.getElementById('select-rue-terrain');
+            const selectFiltre = document.getElementById('select-cote-terrain');
+            if(!selectRue || !selectFiltre) return;
+            
+            const rue = DATA.voies.find(v => v.id === selectRue.value);
+            const container = document.getElementById('liste-terrain-pas-a-pas');
+            if(!container) return;
+            if(!rue) { container.innerHTML = '<p class="text-sm text-gray-400 p-4 text-center">Créez d\'abord des zones.</p>'; return; }
+
+            let listeTotale = [];
+            if(selectFiltre.value === 'TOUS' || selectFiltre.value === 'IMPAIR') { if(rue.emplacementsImpair) listeTotale = listeTotale.concat(rue.emplacementsImpair); }
+            if(selectFiltre.value === 'TOUS' || selectFiltre.value === 'PAIR') { if(rue.emplacementsPair) listeTotale = listeTotale.concat(rue.emplacementsPair); }
+
+            listeTotale.sort((a,b) => a.debut - b.debut);
+
+            if(listeTotale.length === 0) { container.innerHTML = '<p class="text-sm text-center text-gray-400 p-4">Aucun emplacement calculé sur cette rive.</p>'; return; }
+
+            container.innerHTML = listeTotale.map((e) => `
+                <div class="bg-white p-3 rounded-xl border-l-4 ${e.cote === 'PAIR' ? 'border-l-blue-500' : 'border-l-red-500'} flex justify-between items-center shadow-xs">
+                    <div>
+                        <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded ${e.cote === 'PAIR' ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-700'}">${e.cote === 'PAIR' ? 'Côté DROIT (Pair)' : 'Côté GAUCHE (Impair)'}</span>
+                        <div class="text-base text-gray-900 mt-1 font-bold">Repère : ${e.debut}m à ${e.fin}m</div>
+                        <span class="block text-xs text-gray-600">${e.nom} (${e.metres}m) ${e.riverain ? '⭐ [Riverain]':''}</span>
+                    </div>
+                    <input type="checkbox" class="w-6 h-6 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>
