@@ -14,7 +14,8 @@
         .tab-content.active { display: block; }
         #map { height: 440px; width: 100%; border-radius: 0.75rem; z-index: 1 !important; }
         header { z-index: 50 !important; }
-        #modal-exposant, #modal-notif { z-index: 100 !important; }
+        #modal-exposant, #modal-notif, #modal-info-emplacement { z-index: 100 !important; }
+        .group:hover .group-hover\:block { display: block; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans pb-16 md:pb-0">
@@ -30,6 +31,21 @@
 
     <main class="container mx-auto p-4 max-w-6xl mb-12 space-y-6">
         
+        <div class="hidden md:flex space-x-2 bg-white p-2 rounded-xl shadow-sm" id="navigation-desktop">
+            <button onclick="switchTab('tab-carte')" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700 font-medium structure-btn" id="btn-tab-carte">
+                <i data-lucide="map" class="w-4 h-4"></i> Configuration des Voies & Carte
+            </button>
+            <button onclick="switchTab('tab-exposants')" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 structure-btn" id="btn-tab-exposants">
+                <i data-lucide="users" class="w-4 h-4"></i> Exposants & Réservations
+            </button>
+            <button onclick="switchTab('tab-decoupage')" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 structure-btn" id="btn-tab-decoupage">
+                <i data-lucide="scissors" class="w-4 h-4"></i> Algorithme & Découpage
+            </button>
+            <button onclick="switchTab('tab-terrain')" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 structure-btn" id="btn-tab-terrain">
+                <i data-lucide="smartphone" class="w-4 h-4"></i> Mode Terrain (Marquage)
+            </button>
+        </div>
+
         <div class="bg-slate-900 text-white p-4 rounded-xl shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
                 <h3 class="font-bold flex items-center gap-2 text-sm md:text-base"><i data-lucide="save" class="text-amber-400"></i> Continuité du projet / Travail par étapes</h3>
@@ -44,21 +60,6 @@
                     <i data-lucide="download-cloud" class="w-4 h-4"></i> Sauver session (.json)
                 </button>
             </div>
-        </div>
-
-        <div class="hidden md:flex space-x-2 bg-white p-2 rounded-xl shadow-sm" id="navigation-desktop">
-            <button onclick="switchTab('tab-carte')" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700 font-medium structure-btn" id="btn-tab-carte">
-                <i data-lucide="map" class="w-4 h-4"></i> Configuration des Voies & Carte
-            </button>
-            <button onclick="switchTab('tab-exposants')" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 structure-btn" id="btn-tab-exposants">
-                <i data-lucide="users" class="w-4 h-4"></i> Exposants & Réservations
-            </button>
-            <button onclick="switchTab('tab-decoupage')" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 structure-btn" id="btn-tab-decoupage">
-                <i data-lucide="scissors" class="w-4 h-4"></i> Algorithme & Découpage
-            </button>
-            <button onclick="switchTab('tab-terrain')" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 structure-btn" id="btn-tab-terrain">
-                <i data-lucide="smartphone" class="w-4 h-4"></i> Mode Terrain (Marquage)
-            </button>
         </div>
 
         <div id="tab-carte" class="tab-content active space-y-4">
@@ -107,7 +108,7 @@
             <div class="bg-white p-4 rounded-xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h2 class="text-lg font-bold flex items-center gap-2"><i data-lucide="users"></i> Liste des Exposants</h2>
-                    <p class="text-xs text-gray-500">Colonnes additionnelles acceptées en CSV : <b>coteCible</b> (Impair / Pair / Libre)</p>
+                    <p class="text-xs text-gray-500">Colonnes additionnelles acceptées en CSV : <b>coteCible</b>, <b>numeroStand</b></p>
                 </div>
                 <div class="flex flex-wrap gap-2 w-full md:w-auto">
                     <label class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium cursor-pointer hover:bg-blue-700 flex items-center gap-2">
@@ -128,6 +129,7 @@
                     <thead>
                         <tr class="bg-gray-100 border-b uppercase text-xs font-semibold text-gray-600">
                             <th class="p-3">Nom</th>
+                            <th class="p-3">Stand</th>
                             <th class="p-3">Contact</th>
                             <th class="p-3 text-center">Métrage</th>
                             <th class="p-3 text-center">Riverain ?</th>
@@ -227,6 +229,17 @@
                     <button type="submit" class="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg font-medium">Enregistrer</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div id="modal-info-emplacement" class="fixed inset-0 bg-black/50 backdrop-blur-xs z-[110] flex justify-center items-center hidden p-4" onclick="closeModalInfoEmplacement()">
+        <div class="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-2xl relative" onclick="event.stopPropagation()">
+            <button onclick="closeModalInfoEmplacement()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <h3 class="text-lg font-bold text-emerald-600 flex items-center gap-2"><i data-lucide="info"></i> Fiche Emplacement</h3>
+            <div id="modal-info-body" class="space-y-2 text-sm"></div>
+            <button onclick="closeModalInfoEmplacement()" class="w-full bg-gray-900 text-white py-2 rounded-lg text-sm font-medium mt-2">Fermer</button>
         </div>
     </div>
 
@@ -401,17 +414,43 @@
             mapMode = "pick_riverain"; switchTab('tab-carte');
         }
 
-        // --- Fonctions d'interaction au survol du tableau des zones ---
         function mettreEnValeurVoie(id) {
             if (mapPolylines[id]) {
-                mapPolylines[id].setStyle({ color: '#ef4444', weight: 8 }); // Passe en rouge épais
+                mapPolylines[id].setStyle({ color: '#ef4444', weight: 8 });
             }
         }
 
         function restaurerVoie(id) {
             if (mapPolylines[id]) {
-                mapPolylines[id].setStyle({ color: '#10b981', weight: 6 }); // Revient en vert standard
+                mapPolylines[id].setStyle({ color: '#10b981', weight: 6 });
             }
+        }
+
+        function getHtmlDetailEmplacement(nom, debut, fin, metres, cote, stand, tel, riverain) {
+            return `
+                <div class="space-y-1.5">
+                    <p><b>Stand :</b> <span class="bg-slate-100 px-2 py-0.5 rounded font-mono text-xs">${stand || 'Non attribué'}</span></p>
+                    <p><b>Nom :</b> ${nom}</p>
+                    <p><b>Téléphone :</b> ${tel || '-'}</p>
+                    <p><b>Métrage :</b> ${metres}m</p>
+                    <p><b>Linéaire :</b> de ${debut}m à ${fin}m</p>
+                    <p><b>Côté :</b> ${cote === 'PAIR' ? '🔵 Droit / Pair' : '🔴 Gauche / Impair'}</p>
+                    <p><b>Statut :</b> ${riverain ? '⭐ Riverain' : 'Standard'}</p>
+                </div>
+            `;
+        }
+
+        function openModalInfoEmplacement(nom, debut, fin, metres, cote, stand, tel, riverain) {
+            const body = document.getElementById('modal-info-body');
+            if(body) {
+                body.innerHTML = getHtmlDetailEmplacement(nom, debut, fin, metres, cote, stand, tel, riverain);
+                document.getElementById('modal-info-emplacement').classList.remove('hidden');
+                try { lucide.createIcons(); } catch(e){}
+            }
+        }
+
+        function closeModalInfoEmplacement() {
+            document.getElementById('modal-info-emplacement').classList.add('hidden');
         }
 
         const formVoie = document.getElementById('form-voie');
@@ -488,7 +527,8 @@
                     metres: parseInt(document.getElementById('exp-metres').value),
                     cote: document.getElementById('exp-cote').value,
                     riverain: document.getElementById('exp-riverain').checked,
-                    metreCible: document.getElementById('exp-riverain').checked ? parseInt(document.getElementById('exp-metre-cible').value || 0) : null
+                    metreCible: document.getElementById('exp-riverain').checked ? parseInt(document.getElementById('exp-metre-cible').value || 0) : null,
+                    numeroStand: null
                 };
 
                 if (currentId) {
@@ -513,6 +553,7 @@
             tbody.innerHTML = DATA.exposants.map(e => `
                 <tr class="border-b">
                     <td class="p-3 font-semibold">${e.nom}</td>
+                    <td class="p-3 font-mono text-xs text-emerald-700 font-bold">${e.numeroStand || '-'}</td>
                     <td class="p-3 text-xs text-gray-500">${e.tel || '-'}</td>
                     <td class="p-3 text-center font-bold">${e.metres}m</td>
                     <td class="p-3 text-center">${e.riverain ? '⭐' : 'Non'}</td>
@@ -523,7 +564,7 @@
                         <button onclick="supprimerExposant('${e.id}')" class="text-red-500 font-medium hover:underline">Retirer</button>
                     </td>
                 </tr>
-            `).join('') || '<tr><td colspan="7" class="p-4 text-center text-gray-400 italic">Aucun inscrit.</td></tr>';
+            `).join('') || '<tr><td colspan="8" class="p-4 text-center text-gray-400 italic">Aucun inscrit.</td></tr>';
         }
 
         function supprimerExposant(id) { DATA.exposants = DATA.exposants.filter(e => e.id !== id); saveToStorage(); renderExposants(); }
@@ -544,7 +585,8 @@
                         nom: r.nom, tel: r.tel || '', metres: parseInt(r.metres) || 5,
                         cote: r.coteCible || 'LIBRE',
                         riverain: r.riverain === "Oui" || r.riverain === true,
-                        metreCible: parseInt(r.metreCible) || null
+                        metreCible: parseInt(r.metreCible) || null,
+                        numeroStand: r.numeroStand || null
                     }));
                     saveToStorage(); renderExposants();
                 }
@@ -560,7 +602,7 @@
             riverains.forEach(r => {
                 let cibleTable = (r.cote === 'PAIR') ? rue.emplacementsPair : rue.emplacementsImpair;
                 if(r.metreCible + r.metres <= rue.longueur) {
-                    cibleTable.push({ nom: r.nom, debut: r.metreCible, fin: r.metreCible + r.metres, metres: r.metres, riverain: true, cote: (r.cote==='PAIR'?'PAIR':'IMPAIR') });
+                    cibleTable.push({ idExp: r.id, nom: r.nom, tel: r.tel, debut: r.metreCible, fin: r.metreCible + r.metres, metres: r.metres, riverain: true, cote: (r.cote==='PAIR'?'PAIR':'IMPAIR') });
                 }
             });
 
@@ -594,8 +636,26 @@
                 }
             });
 
-            saveToStorage(); renderVisualisationDecoupage();
-            showNotif("Calcul Global Terminé", "Les deux rives ont été optimisées.");
+            rue.emplacementsImpair.sort((a,b) => a.debut - b.debut);
+            rue.emplacementsImpair.forEach((emp, index) => {
+                let standNum = `G-${String(index + 1).padStart(2, '0')}`;
+                emp.numeroStand = standNum;
+                let original = DATA.exposants.find(ex => ex.id === emp.idExp);
+                if(original) original.numeroStand = standNum;
+            });
+
+            rue.emplacementsPair.sort((a,b) => a.debut - b.debut);
+            rue.emplacementsPair.forEach((emp, index) => {
+                let standNum = `D-${String(index + 1).padStart(2, '0')}`;
+                emp.numeroStand = standNum;
+                let original = DATA.exposants.find(ex => ex.id === emp.idExp);
+                if(original) original.numeroStand = standNum;
+            });
+
+            saveToStorage(); 
+            renderExposants();
+            renderVisualisationDecoupage();
+            showNotif("Calcul Global Terminé", "Les numéros de stand ont été attribués.");
         }
 
         function verifierEtPlacer(tableEmplacements, exposant, curseurActuel, maxLong, codeCote) {
@@ -603,7 +663,7 @@
             while(curseur < maxLong) {
                 let collision = tableEmplacements.some(emp => (curseur >= emp.debut && curseur < emp.fin) || (curseur + exposant.metres > emp.debut && curseur + exposant.metres <= emp.fin));
                 if(!collision && (curseur + exposant.metres <= maxLong)) {
-                    tableEmplacements.push({ nom: exposant.nom, debut: curseur, fin: curseur + exposant.metres, metres: exposant.metres, riverain: false, cote: codeCote });
+                    tableEmplacements.push({ idExp: exposant.id, nom: exposant.nom, tel: exposant.tel, debut: curseur, fin: curseur + exposant.metres, metres: exposant.metres, riverain: false, cote: codeCote });
                     return true;
                 } else {
                     let empBloquant = tableEmplacements.find(emp => curseur >= emp.debut && curseur < emp.fin);
@@ -611,6 +671,34 @@
                 }
             }
             return false;
+        }
+
+        function buildEmplacementBlockHtml(e, rue, baseBgColor) {
+            let standStr = e.numeroStand || '';
+            let telStr = e.tel || '';
+            let safeNom = e.nom.replace(/'/g, "\\'");
+            let safeTel = telStr.replace(/'/g, "\\'");
+            
+            return `
+                <div style="width: ${(e.metres / rue.longueur) * 100}%; min-width:85px;" 
+                     class="group relative ${e.riverain ? 'bg-amber-400 text-amber-950' : baseBgColor} h-12 border border-white flex flex-col items-center justify-center text-[10px] font-bold rounded shadow-xs cursor-pointer select-none"
+                     onclick="openModalInfoEmplacement('${safeNom}', ${e.debut}, ${e.fin}, ${e.metres}, '${e.cote}', '${standStr}', '${safeTel}', ${e.riverain})"
+                >
+                    <span class="bg-black/10 px-1 rounded text-[9px] mb-0.5">${standStr}</span>
+                    <span class="truncate w-full text-center px-1">${e.nom}</span>
+                    <span class="opacity-80 text-[8px]">${e.debut}m - ${e.fin}m</span>
+                    
+                    <div class="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 bg-slate-900 text-white text-xs rounded-lg p-3 shadow-xl z-[90] pointer-events-none">
+                        <div class="space-y-1">
+                            <p class="font-bold border-b border-slate-700 pb-1 text-amber-400">Stand : ${standStr}</p>
+                            <p class="truncate"><b>Nom :</b> ${e.nom}</p>
+                            <p><b>Métrage :</b> ${e.metres}m (${e.debut}-${e.fin}m)</p>
+                            <p><b>Contact :</b> ${telStr || '-'}</p>
+                            <p><b>Type :</b> ${e.riverain ? 'Riverain' : 'Standard'}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
         function renderVisualisationDecoupage() {
@@ -622,30 +710,19 @@
                 rue.emplacementsImpair.sort((a,b) => a.debut - b.debut);
                 rue.emplacementsPair.sort((a,b) => a.debut - b.debut);
 
-                let htmlImpair = rue.emplacementsImpair.map(e => `
-                    <div style="width: ${(e.metres / rue.longueur) * 100}%; min-width:75px;" class="${e.riverain ? 'bg-amber-400 text-amber-950' : 'bg-red-500 text-white'} h-10 border border-white flex flex-col items-center justify-center text-[10px] font-bold rounded shadow-xs">
-                        <span class="truncate w-full text-center px-1">${e.nom}</span>
-                        <span>${e.debut}m - ${e.fin}m</span>
-                    </div>
-                `).join('');
-
-                let htmlPair = rue.emplacementsPair.map(e => `
-                    <div style="width: ${(e.metres / rue.longueur) * 100}%; min-width:75px;" class="${e.riverain ? 'bg-amber-400 text-amber-950' : 'bg-blue-500 text-white'} h-10 border border-white flex flex-col items-center justify-center text-[10px] font-bold rounded shadow-xs">
-                        <span class="truncate w-full text-center px-1">${e.nom}</span>
-                        <span>${e.debut}m - ${e.fin}m</span>
-                    </div>
-                `).join('');
+                let htmlImpair = rue.emplacementsImpair.map(e => buildEmplacementBlockHtml(e, rue, 'bg-red-500 text-white')).join('');
+                let htmlPair = rue.emplacementsPair.map(e => buildEmplacementBlockHtml(e, rue, 'bg-blue-500 text-white')).join('');
 
                 return `
                     <div class="bg-white p-4 rounded-xl border border-gray-200 space-y-3 shadow-xs">
                         <div class="flex justify-between items-center"><b class="text-gray-900">📍 Rives de : ${rue.nom}</b></div>
                         <div class="space-y-1">
                             <div class="text-[11px] font-bold text-red-700">🔴 Côté Gauche / Impair</div>
-                            <div class="w-full bg-gray-200 h-12 flex p-1 overflow-x-auto rounded-lg">${htmlImpair || '<span class="text-xs text-gray-400 italic p-2">Aucun.</span>'}</div>
+                            <div class="w-full bg-gray-200 h-14 flex p-1 overflow-x-auto rounded-lg gap-0.5">${htmlImpair || '<span class="text-xs text-gray-400 italic p-2">Aucun.</span>'}</div>
                         </div>
                         <div class="space-y-1">
                             <div class="text-[11px] font-bold text-blue-700">🔵 Côté Droite / Pair</div>
-                            <div class="w-full bg-gray-200 h-12 flex p-1 overflow-x-auto rounded-lg">${htmlPair || '<span class="text-xs text-gray-400 italic p-2">Aucun.</span>'}</div>
+                            <div class="w-full bg-gray-200 h-14 flex p-1 overflow-x-auto rounded-lg gap-0.5">${htmlPair || '<span class="text-xs text-gray-400 italic p-2">Aucun.</span>'}</div>
                         </div>
                     </div>
                 `;
@@ -667,18 +744,21 @@
             if(!container) return;
             if(!rue) { container.innerHTML = '<p class="text-sm text-gray-400 p-4 text-center">Créez d\'abord des zones.</p>'; return; }
 
-            let listeTotale = [];
-            if(selectFiltre.value === 'TOUS' || selectFiltre.value === 'IMPAIR') { if(rue.emplacementsImpair) listeTotale = listeTotale.concat(rue.emplacementsImpair); }
-            if(selectFiltre.value === 'TOUS' || selectFiltre.value === 'PAIR') { if(rue.emplacementsPair) listeTotale = listeTotale.concat(rue.emplacementsPair); }
+            let listetotale = [];
+            if(selectFiltre.value === 'TOUS' || selectFiltre.value === 'IMPAIR') { if(rue.emplacementsImpair) listetotale = listetotale.concat(rue.emplacementsImpair); }
+            if(selectFiltre.value === 'TOUS' || selectFiltre.value === 'PAIR') { if(rue.emplacementsPair) listetotale = listetotale.concat(rue.emplacementsPair); }
 
-            listeTotale.sort((a,b) => a.debut - b.debut);
+            listetotale.sort((a,b) => a.debut - b.debut);
 
-            if(listeTotale.length === 0) { container.innerHTML = '<p class="text-sm text-center text-gray-400 p-4">Aucun emplacement calculé sur cette rive.</p>'; return; }
+            if(listetotale.length === 0) { container.innerHTML = '<p class="text-sm text-center text-gray-400 p-4">Aucun emplacement calculé sur cette rive.</p>'; return; }
 
-            container.innerHTML = listeTotale.map((e) => `
+            container.innerHTML = listetotale.map((e) => `
                 <div class="bg-white p-3 rounded-xl border-l-4 ${e.cote === 'PAIR' ? 'border-l-blue-500' : 'border-l-red-500'} flex justify-between items-center shadow-xs">
                     <div>
-                        <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded ${e.cote === 'PAIR' ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-700'}">${e.cote === 'PAIR' ? 'Côté DROIT (Pair)' : 'Côté GAUCHE (Impair)'}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded ${e.cote === 'PAIR' ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-700'}">${e.cote === 'PAIR' ? 'Côté DROIT (Pair)' : 'Côté GAUCHE (Impair)'}</span>
+                            <span class="bg-slate-900 text-white font-mono font-bold px-1.5 py-0.5 rounded text-xs">${e.numeroStand || 'N/A'}</span>
+                        </div>
                         <div class="text-base text-gray-900 mt-1 font-bold">Repère : ${e.debut}m à ${e.fin}m</div>
                         <span class="block text-xs text-gray-600">${e.nom} (${e.metres}m) ${e.riverain ? '⭐ [Riverain]':''}</span>
                     </div>
